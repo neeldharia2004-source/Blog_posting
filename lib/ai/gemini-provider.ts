@@ -41,36 +41,49 @@ Please generate the complete, high-quality markdown blog post now:
 
     // If real GEMINI_API_KEY is present, call the official Google Gen AI SDK
     if (this.apiKey && this.apiKey.trim() !== "") {
-      try {
-        const ai = new GoogleGenAI({ apiKey: this.apiKey });
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: `${systemPrompt}\n\n${userPrompt}` }
-              ]
-            }
-          ],
-          config: {
-            temperature: options.temperature ?? 0.7,
+      const candidateModels = [
+        options.model || "gemini-2.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-latest",
+      ];
+
+      const ai = new GoogleGenAI({ apiKey: this.apiKey });
+      let lastError: any = null;
+
+      for (const candidate of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model: candidate,
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
+              },
+            ],
+            config: {
+              temperature: options.temperature ?? 0.7,
+            },
+          });
+
+          const generatedText = response.text || "";
+          if (generatedText) {
+            return {
+              content: generatedText.trim(),
+              model: candidate,
+            };
           }
-        });
-
-        const generatedText = response.text || "";
-        if (!generatedText) {
-          throw new Error("Received empty response from Gemini API");
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`Model ${candidate} encountered an error (${err.message || err}). Trying next candidate...`);
+          // Brief pause before fallback
+          await new Promise((res) => setTimeout(res, 800));
         }
-
-        return {
-          content: generatedText.trim(),
-          model: modelName,
-        };
-      } catch (err: any) {
-        console.error("Gemini API Error:", err);
-        throw new Error(`Gemini API Error: ${err.message || "Failed to generate content"}`);
       }
+
+      console.error("All Gemini candidate models failed:", lastError);
+      throw new Error(`Gemini API Error: ${lastError?.message || "Failed to generate content"}`);
     }
 
     // Fallback context-aware generation for local development if GEMINI_API_KEY is not yet added
