@@ -5,6 +5,7 @@ import path from "path";
 
 export class ContextService {
   private static UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "context");
+  private static MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit
 
   private static async ensureDirectory(dirPath: string) {
     try {
@@ -40,7 +41,12 @@ export class ContextService {
     originalFileName: string,
     mimeType: string
   ) {
-    // 1. Verify project exists
+    // 1. Enforce file size limit
+    if (fileBuffer.length > this.MAX_FILE_SIZE) {
+      throw new Error(`File size (${(fileBuffer.length / (1024 * 1024)).toFixed(1)}MB) exceeds the 10MB maximum limit.`);
+    }
+
+    // 2. Verify project exists
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new Error("Project not found");
 
