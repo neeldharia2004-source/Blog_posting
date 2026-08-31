@@ -9,21 +9,41 @@ export class BloggerPublisher implements Publisher {
   private blogId: string | undefined;
   private apiKey: string | undefined;
   private accessToken: string | undefined;
+  private clientId: string | undefined;
+  private clientSecret: string | undefined;
+  private refreshToken: string | undefined;
 
   constructor() {
     this.blogId = process.env.BLOGGER_BLOG_ID;
     this.apiKey = process.env.BLOGGER_API_KEY;
     this.accessToken = process.env.BLOGGER_ACCESS_TOKEN;
+    this.clientId = process.env.BLOGGER_CLIENT_ID;
+    this.clientSecret = process.env.BLOGGER_CLIENT_SECRET;
+    this.refreshToken = process.env.BLOGGER_REFRESH_TOKEN;
   }
 
   isConfigured(): boolean {
-    return Boolean(this.blogId && (this.apiKey || this.accessToken));
+    const hasBlogId = Boolean(this.blogId && this.blogId.trim() !== "");
+    const hasOAuth = Boolean(this.clientId && this.clientSecret && this.refreshToken);
+    const hasTokenOrKey = Boolean(this.apiKey || this.accessToken);
+
+    return hasBlogId && (hasOAuth || hasTokenOrKey);
   }
 
   getConfigStatus(): PlatformConfigStatus {
     const missing: string[] = [];
     if (!this.blogId) missing.push("BLOGGER_BLOG_ID");
-    if (!this.apiKey && !this.accessToken) missing.push("BLOGGER_API_KEY or BLOGGER_ACCESS_TOKEN");
+
+    const hasOAuth = Boolean(this.clientId && this.clientSecret && this.refreshToken);
+    const hasTokenOrKey = Boolean(this.apiKey || this.accessToken);
+
+    if (!hasOAuth && !hasTokenOrKey) {
+      if (this.clientId && this.clientSecret && !this.refreshToken) {
+        missing.push("BLOGGER_REFRESH_TOKEN (or BLOGGER_API_KEY / BLOGGER_ACCESS_TOKEN)");
+      } else {
+        missing.push("BLOGGER_API_KEY or BLOGGER_REFRESH_TOKEN");
+      }
+    }
 
     return {
       platform: this.platform,
@@ -34,12 +54,44 @@ export class BloggerPublisher implements Publisher {
     };
   }
 
+  /**
+   * Automatically fetches a fresh OAuth2 access token if refreshToken is present
+   */
+  private async getValidAccessToken(): Promise<string | null> {
+    if (this.accessToken) return this.accessToken;
+
+    if (this.clientId && this.clientSecret && this.refreshToken) {
+      try {
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: this.clientId,
+            client_secret: this.clientSecret,
+            refresh_token: this.refreshToken,
+            grant_type: "refresh_token",
+          }),
+        });
+
+        const tokenData = await tokenRes.json();
+        if (tokenData.access_token) {
+          return tokenData.access_token;
+        }
+        console.error("Failed to refresh Blogger access token:", tokenData);
+      } catch (tokenErr) {
+        console.error("Error refreshing Blogger OAuth token:", tokenErr);
+      }
+    }
+
+    return null;
+  }
+
   async publish(options: PublishOptions): Promise<PublishResult> {
     if (!this.isConfigured()) {
       return {
         success: false,
         platform: this.platform,
-        error: `Blogger credentials missing. Required environment variables: ${this.getConfigStatus().missingFields.join(", ")}`,
+        error: `Blogger credentials missing. Required: ${this.getConfigStatus().missingFields.join(", ")}`,
       };
     }
 
@@ -55,13 +107,15 @@ export class BloggerPublisher implements Publisher {
         postPayload.labels = options.tags;
       }
 
+      const activeToken = await this.getValidAccessToken();
+
       let url = `https://www.googleapis.com/blogger/v3/blogs/${this.blogId}/posts/`;
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
 
-      if (this.accessToken) {
-        headers["Authorization"] = `Bearer ${this.accessToken}`;
+      if (activeToken) {
+        headers["Authorization"] = `Bearer ${activeToken}`;
       } else if (this.apiKey) {
         url += `?key=${this.apiKey}`;
       }
