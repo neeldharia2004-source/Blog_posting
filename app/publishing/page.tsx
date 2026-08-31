@@ -234,6 +234,15 @@ export default function PublishingPage() {
                 ))}
               </div>
             )}
+
+            {cfg.platform === "BLOGGER" && (
+              <a
+                href="/api/auth/blogger"
+                className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all hover:scale-[1.01]"
+              >
+                {cfg.isConfigured ? "Re-Authorize Google Blogger" : "Authorize Google Blogger (1-Click)"}
+              </a>
+            )}
           </div>
         ))}
       </div>
