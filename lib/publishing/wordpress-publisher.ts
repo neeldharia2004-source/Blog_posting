@@ -11,7 +11,10 @@ export class WordPressPublisher implements Publisher {
   private appPassword: string | undefined;
 
   constructor() {
-    this.siteUrl = process.env.WORDPRESS_SITE_URL?.replace(/\/$/, "");
+    this.siteUrl = process.env.WORDPRESS_SITE_URL
+      ?.replace(/\/wp-admin(\/.*)?$/, "")
+      ?.replace(/\/wp-login\.php$/, "")
+      ?.replace(/\/$/, "");
     this.username = process.env.WORDPRESS_USERNAME;
     this.appPassword = process.env.WORDPRESS_APPLICATION_PASSWORD;
   }
@@ -63,7 +66,17 @@ export class WordPressPublisher implements Publisher {
         }),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+      let data: any;
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const rawText = await response.text();
+        throw new Error(
+          `WordPress returned HTTP ${response.status} (${response.statusText}). Check your site URL: ${this.siteUrl}`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(data.message || `WordPress API returned status ${response.status}`);
