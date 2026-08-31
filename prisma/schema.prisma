@@ -1,0 +1,141 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum BlogStatus {
+  DRAFT
+  GENERATING
+  GENERATED
+  APPROVED
+  PUBLISHED
+  FAILED
+}
+
+enum PublishingPlatform {
+  BLOGGER
+  WORDPRESS
+}
+
+enum PublishingStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+model Company {
+  id          String    @id @default(uuid())
+  name        String
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sections    Section[]
+  projects    Project[]
+
+  @@map("companies")
+}
+
+model Section {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@index([companyId])
+  @@map("sections")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  sectionId   String
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+  @@map("products")
+}
+
+model Project {
+  id           String        @id @default(uuid())
+  companyId    String
+  name         String
+  description  String?       @db.Text
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contextFiles ContextFile[]
+  blogs        Blog[]
+
+  @@index([companyId])
+  @@map("projects")
+}
+
+model ContextFile {
+  id               String   @id @default(uuid())
+  projectId        String
+  fileName         String
+  fileType         String
+  filePath         String?
+  storageReference String?
+  extractedContent String   @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("context_files")
+}
+
+model Blog {
+  id             String          @id @default(uuid())
+  projectId      String
+  title          String
+  topic          String?
+  status         BlogStatus      @default(DRAFT)
+  content        String          @db.Text
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  publishedPosts PublishedPost[]
+
+  @@index([projectId])
+  @@index([status])
+  @@map("blogs")
+}
+
+model PublishedPost {
+  id             String             @id @default(uuid())
+  blogId         String
+  platform       PublishingPlatform
+  url            String?
+  status         PublishingStatus   @default(PENDING)
+  externalPostId String?
+  publishedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  blog           Blog               @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([blogId])
+  @@index([platform])
+  @@index([status])
+  @@map("published_posts")
+}

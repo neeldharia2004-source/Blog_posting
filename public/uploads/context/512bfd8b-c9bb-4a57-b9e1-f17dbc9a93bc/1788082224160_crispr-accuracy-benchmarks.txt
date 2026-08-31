@@ -1,0 +1,1 @@
+CRISPR-Cas9 target accuracy benchmarks: 99.8% on-target binding in phase 1 in-vitro testing.

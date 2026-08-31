@@ -24,3 +24,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide Next.js Dev Indicator Badge */
+nextjs-portal,
+[data-nextjs-indicator],
+#next-route-announcer {
+  display: none !important;
+}
+
