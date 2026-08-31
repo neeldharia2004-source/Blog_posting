@@ -19,12 +19,14 @@ import {
   AlertCircle,
   Building2,
   FolderKanban,
-  Check
+  Check,
+  Send
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CardSkeleton } from "@/components/ui/LoadingSkeleton";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { Modal } from "@/components/ui/Modal";
 
 interface PublishedPost {
   id: string;
@@ -76,6 +78,13 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
   // Delete Dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Publishing Modal State
+  const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [targetPlatform, setTargetPlatform] = useState<"BLOGGER" | "WORDPRESS">("BLOGGER");
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [publishSuccess, setPublishSuccess] = useState<any>(null);
 
   const fetchBlog = async () => {
     try {
@@ -172,6 +181,34 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
       setFeedback({ type: "error", message: err.message || "Regeneration failed." });
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!blog) return;
+    setPublishing(true);
+    setPublishError("");
+    setPublishSuccess(null);
+
+    try {
+      const res = await fetch(`/api/blogs/${id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform: targetPlatform }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Publishing to ${targetPlatform} failed.`);
+      }
+
+      setPublishSuccess(data);
+      setStatus("PUBLISHED");
+      fetchBlog();
+    } catch (err: any) {
+      setPublishError(err.message || "Failed to publish blog.");
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -274,6 +311,20 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
               <CheckCircle2 className="h-3.5 w-3.5" />
               Approve Blog
             </button>
+
+            {(status === "APPROVED" || status === "PUBLISHED") && (
+              <button
+                onClick={() => {
+                  setPublishError("");
+                  setPublishSuccess(null);
+                  setPublishModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-all hover:scale-[1.02] cursor-pointer"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Publish Blog
+              </button>
+            )}
 
             <button
               onClick={() => setDeleteDialogOpen(true)}
@@ -434,6 +485,120 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       )}
+
+      {/* Publish Modal */}
+      <Modal
+        isOpen={publishModalOpen}
+        onClose={() => setPublishModalOpen(false)}
+        title="Publish Blog Post"
+        description="Select the destination platform to publish the approved markdown post."
+      >
+        <div className="space-y-5">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Selected Blog Post
+            </span>
+            <h4 className="text-sm font-bold text-slate-900">{blog.title}</h4>
+            <p className="text-xs text-slate-500">
+              {blog.project.company.name} • {blog.project.name}
+            </p>
+          </div>
+
+          {/* Platform Selector */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+              Select Destination Platform
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setTargetPlatform("BLOGGER")}
+                className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                  targetPlatform === "BLOGGER"
+                    ? "border-indigo-600 bg-indigo-50/50 shadow-xs"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="font-bold text-xs text-slate-900">Google Blogger</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Blogger v3 REST API</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTargetPlatform("WORDPRESS")}
+                className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                  targetPlatform === "WORDPRESS"
+                    ? "border-indigo-600 bg-indigo-50/50 shadow-xs"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="font-bold text-xs text-slate-900">WordPress</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">REST API v2 App Passwords</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Error Banner */}
+          {publishError && (
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl bg-rose-50 text-rose-800 text-xs border border-rose-200">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">Publishing Error</span>
+                <span>{publishError}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Success Banner */}
+          {publishSuccess && (
+            <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-xs border border-emerald-200 space-y-2">
+              <div className="flex items-center gap-2 font-bold">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                Successfully published to {targetPlatform}!
+              </div>
+              {publishSuccess.url && (
+                <a
+                  href={publishSuccess.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-indigo-700 underline font-mono text-xs font-semibold"
+                >
+                  View Live Post <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setPublishModalOpen(false)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={publishing}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs shadow-md shadow-indigo-200 transition-all hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
+            >
+              {publishing ? (
+                <>
+                  <span className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Send className="h-3.5 w-3.5" />
+                  Publish Now
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
