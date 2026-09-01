@@ -20,12 +20,14 @@ import {
   Building2,
   FolderKanban,
   Check,
-  Send
+  Send,
+  TrendingUp
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CardSkeleton } from "@/components/ui/LoadingSkeleton";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { SEOAnalyzer } from "@/components/SEOAnalyzer";
 import { Modal } from "@/components/ui/Modal";
 
 interface PublishedPost {
@@ -68,7 +70,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
   const [status, setStatus] = useState<string>("DRAFT");
 
   // Editor View Mode
-  const [viewMode, setViewMode] = useState<"edit" | "preview" | "split">("split");
+  const [viewMode, setViewMode] = useState<"edit" | "preview" | "split" | "seo">("split");
 
   // Action states
   const [saving, setSaving] = useState(false);
@@ -421,11 +423,34 @@ export default function BlogEditorPage({ params }: { params: Promise<{ id: strin
             >
               Split View
             </button>
+            <button
+              onClick={() => setViewMode("seo")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                viewMode === "seo"
+                  ? "bg-white text-indigo-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <TrendingUp className="h-3.5 w-3.5 text-indigo-600" /> SEO & Quality Audit
+            </button>
           </div>
         </div>
 
         {/* Content Area */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* SEO & Quality Analyzer View */}
+          {viewMode === "seo" && (
+            <div className="md:col-span-2">
+              <SEOAnalyzer
+                title={title}
+                topic={topic}
+                content={content}
+                companyName={blog.project.company.name}
+                blogId={blog.id}
+              />
+            </div>
+          )}
+
           {/* Raw Markdown Editor */}
           {(viewMode === "edit" || viewMode === "split") && (
             <div className={`space-y-2 ${viewMode === "edit" ? "md:col-span-2" : ""}`}>
